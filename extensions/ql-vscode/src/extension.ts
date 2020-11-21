@@ -429,6 +429,37 @@ async function activateWithInstalledDistribution(
     }
   }
 
+  // Custom visualization rather than table
+  async function compileAndRunVisQuery(
+    quickEval: boolean,
+    selectedQuery: Uri | undefined,
+    progress: helpers.ProgressCallback,
+    token: CancellationToken,
+  ): Promise<void> {
+    if (qs !== undefined) {
+      const dbItem = await databaseUI.getDatabaseItem(progress, token);
+      if (dbItem === undefined) {
+        throw new Error('Can\'t run query without a selected database');
+      }
+      const info = await compileAndRunQueryAgainstDatabase(
+        cliServer,
+        qs,
+        dbItem,
+        quickEval,
+        selectedQuery,
+        progress,
+        token
+      );
+      const item = qhm.addQuery(info);
+      // TODO: Replace this
+      await showResultsForCompletedQuery(item, WebviewReveal.NotForced);
+      // The call to showResults potentially creates SARIF file;
+      // Update the tree item context value to allow viewing that
+      // SARIF file from context menu.
+      await qhm.updateTreeItemContextValue(item);
+    }
+  }
+
   ctx.subscriptions.push(tmpDirDisposal);
 
   logger.log('Initializing CodeQL language server.');
@@ -473,6 +504,20 @@ async function activateWithInstalledDistribution(
       ) => await compileAndRunQuery(false, uri, progress, token),
       {
         title: 'Running query',
+        cancellable: true
+      }
+    )
+  );
+  ctx.subscriptions.push(
+    helpers.commandRunnerWithProgress(
+      'codeQL.runVisQuery',
+      async (
+        progress: helpers.ProgressCallback,
+        token: CancellationToken,
+        uri: Uri | undefined
+      ) => await compileAndRunVisQuery(false, uri, progress, token),
+      {
+        title: 'Running visualized query',
         cancellable: true
       }
     )

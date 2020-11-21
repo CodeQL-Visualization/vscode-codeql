@@ -178,6 +178,10 @@
         "title": "CodeQL: Run Query"
       },
       {
+        "command": "codeQL.runVisQuery",
+        "title": "CodeQL: Run Visualized Query"
+      },
+      {
         "command": "codeQL.runQueries",
         "title": "CodeQL: Run Queries in Selected Files"
       },
