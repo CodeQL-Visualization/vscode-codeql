@@ -530,6 +530,10 @@
           "when": "resourceLangId == ql && resourceExtname == .ql"
         },
         {
+          "command": "codeQL.runVisQuery",
+          "when": "resourceLangId == ql && resourceExtname == .ql"
+        },
+        {
           "command": "codeQL.runQueries",
           "when": "false"
         },
@@ -645,6 +649,10 @@
       "editor/context": [
         {
           "command": "codeQL.runQuery",
+          "when": "editorLangId == ql && resourceExtname == .ql"
+        },
+        {
+          "command": "codeQL.runVisQuery",
           "when": "editorLangId == ql && resourceExtname == .ql"
         },
         {
