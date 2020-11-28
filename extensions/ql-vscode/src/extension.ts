@@ -401,10 +401,9 @@ async function activateWithInstalledDistribution(
   }
 
   async function showResultsForCompletedVisQuery(
-    query: CompletedQuery,
-    forceReveal: WebviewReveal
+    query: CompletedQuery
   ): Promise<void> {
-    await intm.showVisResults(query, forceReveal, false);
+    await intm.showVisResults(query);
   }
 
   async function compileAndRunQuery(
@@ -459,7 +458,7 @@ async function activateWithInstalledDistribution(
       );
       const item = qhm.addQuery(info);
       // TODO: flesh this out
-      await showResultsForCompletedVisQuery(item, WebviewReveal.NotForced);
+      await showResultsForCompletedVisQuery(item);
       // The call to showResults potentially creates SARIF file;
       // Update the tree item context value to allow viewing that
       // SARIF file from context menu.

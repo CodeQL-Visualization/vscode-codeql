@@ -562,29 +562,6 @@ export class CodeQLCliServer implements Disposable {
     return await this.runJsonCodeQlCliCommand<DecodedBqrsChunk>(['bqrs', 'decode'], subcommandArgs, 'Reading bqrs data');
   }
 
-  /**
-  * Gets the results from a bqrs in JSON
-  * @param bqrsPath The path to the bqrs.
-  * @param resultSet The result set to get.
-  * @param options Optional BqrsDecodeOptions arguments
-  */
-  async bqrsVisDecode(
-    bqrsPath: string,
-    resultSet: string,
-    { pageSize, offset, entities = ['url', 'string'] }: BqrsDecodeOptions = {}
-  ): Promise<JSON> {
-
-    const subcommandArgs = [
-      `--entities=${entities.join(',')}`,
-      '--result-set', resultSet,
-    ].concat(
-      pageSize ? ['--rows', pageSize.toString()] : []
-    ).concat(
-      offset ? ['--start-at', offset.toString()] : []
-    ).concat([bqrsPath]);
-    return await this.runJsonCodeQlCliCommand<JSON>(['bqrs', 'decode'], subcommandArgs, 'Reading bqrs data');
-  }
-
   async interpretBqrs(metadata: { kind: string; id: string }, resultsPath: string, interpretedResultsPath: string, sourceInfo?: SourceInfo): Promise<sarif.Log> {
     const args = [
       `-t=kind=${metadata.kind}`,
