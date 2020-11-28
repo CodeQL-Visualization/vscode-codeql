@@ -417,6 +417,131 @@ export class InterfaceManager extends DisposableObject {
   }
 
   /**
+   * TODO: Show visualized results in webview panel.
+   * @param results Evaluation info for the executed query.
+   * @param shouldKeepOldResultsWhileRendering Should keep old results while rendering.
+   * @param forceReveal Force the webview panel to be visible and
+   * Appropriate when the user has just performed an explicit
+   * UI interaction requesting results, e.g. clicking on a query
+   * history entry.
+   */
+  public async showVisResults(
+    results: CompletedQuery,
+    forceReveal: WebviewReveal,
+    shouldKeepOldResultsWhileRendering = false
+  ): Promise<void> {
+    if (results.result.resultType !== messages.QueryResultType.SUCCESS) {
+      return;
+    }
+
+    this._interpretation = undefined;
+    const interpretationPage = await this.interpretResultsInfo(
+      results.query,
+      results.interpretedResultsSortState
+    );
+
+    const sortedResultsMap: SortedResultsMap = {};
+    results.sortedResultsInfo.forEach(
+      (v, k) =>
+        (sortedResultsMap[k] = this.convertPathPropertiesToWebviewUris(v))
+    );
+
+    this._displayedQuery = results;
+
+    const panel = this.getPanel();
+    await this.waitForPanelLoaded();
+    if (forceReveal === WebviewReveal.Forced) {
+      panel.reveal(undefined, true);
+    } else if (!panel.visible) {
+      // The results panel exists, (`.getPanel()` guarantees it) but
+      // is not visible; it's in a not-currently-viewed tab. Show a
+      // more asynchronous message to not so abruptly interrupt
+      // user's workflow by immediately revealing the panel.
+      const showButton = 'View Results';
+      const queryName = results.queryName;
+      const resultPromise = vscode.window.showInformationMessage(
+        `Finished running query ${
+        queryName.length > 0 ? ` "${queryName}"` : ''
+        }.`,
+        showButton
+      );
+      // Address this click asynchronously so we still update the
+      // query history immediately.
+      resultPromise.then((result) => {
+        if (result === showButton) {
+          panel.reveal();
+        }
+      });
+    }
+
+    // Note that the resultSetSchemas will return offsets for the default (unsorted) page,
+    // which may not be correct. However, in this case, it doesn't matter since we only
+    // need the first offset, which will be the same no matter which sorting we use.
+    const resultSetSchemas = await this.getResultSetSchemas(results);
+    const resultSetNames = resultSetSchemas.map(schema => schema.name);
+
+    const selectedTable = getDefaultResultSetName(resultSetNames);
+    const schema = resultSetSchemas.find(
+      (resultSet) => resultSet.name == selectedTable
+    )!;
+
+    // Use sorted results path if it exists. This may happen if we are
+    // reloading the results view after it has been sorted in the past.
+    const resultsPath = results.getResultsPath(selectedTable);
+
+    // TODO what do we want to do with this?
+    const testChunk = await this.cliServer.bqrsVisDecode(
+      resultsPath,
+      schema.name,
+      {
+        // Always send the first page.
+        // It may not wind up being the page we actually show,
+        // if there are interpreted results, but speculatively
+        // send anyway.
+        offset: schema.pagination?.offsets[0],
+        pageSize: RAW_RESULTS_PAGE_SIZE
+      }
+    );
+
+    const chunk = await this.cliServer.bqrsDecode(
+      resultsPath,
+      schema.name,
+      {
+        // Always send the first page.
+        // It may not wind up being the page we actually show,
+        // if there are interpreted results, but speculatively
+        // send anyway.
+        offset: schema.pagination?.offsets[0],
+        pageSize: RAW_RESULTS_PAGE_SIZE
+      }
+    );
+
+    const resultSet = transformBqrsResultSet(schema, chunk);
+    const parsedResultSets: ParsedResultSets = {
+      pageNumber: 0,
+      numPages: numPagesOfResultSet(resultSet),
+      numInterpretedPages: numInterpretedPages(this._interpretation),
+      resultSet: { ...resultSet, t: 'RawResultSet' },
+      selectedTable: undefined,
+      resultSetNames,
+    };
+
+    await this.postMessage({
+      t: 'setState',
+      interpretation: interpretationPage,
+      origResultsPaths: results.query.resultsPaths,
+      resultsPath: this.convertPathToWebviewUri(
+        results.query.resultsPaths.resultsPath
+      ),
+      parsedResultSets,
+      sortedResultsMap,
+      database: results.database,
+      shouldKeepOldResultsWhileRendering,
+      metadata: results.query.metadata,
+    });
+  }
+
+  /**
    * Show a page of interpreted results
    */
   public async showPageOfInterpretedResults(
