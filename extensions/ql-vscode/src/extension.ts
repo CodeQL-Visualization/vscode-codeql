@@ -14,6 +14,7 @@ import {
 } from 'vscode';
 import { LanguageClient } from 'vscode-languageclient';
 import * as path from 'path';
+const { exec } = require('child_process');
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
 
 import { AstViewer } from './astViewer';
@@ -456,6 +457,19 @@ async function activateWithInstalledDistribution(
         progress,
         token
       );
+      
+      console.log("Start codeql visualization.....");
+
+      // start the visualizer manually......
+      exec('code --extensionDevelopmentPath=/Users/cijiexia/Project/vscode-codeql/vscode-debug-visualizer/extension', (err :any, stdout: any, stderr: any) => {
+          console.log(stdout);
+
+          if (err) {
+            console.log(err);
+            console.log(stderr);
+          }
+      });
+
       const item = qhm.addQuery(info);
       // TODO: flesh this out
       await showResultsForCompletedVisQuery(item);
