@@ -46,6 +46,7 @@ import {
   shownLocationLineDecoration,
   jumpToLocation,
 } from './interface-utils';
+import fs = require('fs');
 import { getDefaultResultSetName, ParsedResultSets } from './pure/interface-types';
 import { RawResultSet, transformBqrsResultSet, ResultSetSchema, EntityValue, ResolvableLocationValue } from './pure/bqrs-cli-types';
 import { GraphNode } from '../../../vscode-debug-visualizer/data-extraction/src/CommonDataTypes';
@@ -560,17 +561,16 @@ export class InterfaceManager extends DisposableObject {
         });
       }
     }
-    const graph =  {nodes: nodes, edges: edges};
+    const graph = { nodes: nodes, edges: edges };
 
     console.log(JSON.stringify(graph));
 
     //write data to file 
-    var fs = require('fs');
-    
-    fs.writeFile('/Users/cijiexia/Project/vscode-codeql/codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any){
-      if (err){
-          console.log(err);
-    }});
+    fs.writeFile('../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
+      if (err) {
+        console.log(err);
+      }
+    });
 
   }
 

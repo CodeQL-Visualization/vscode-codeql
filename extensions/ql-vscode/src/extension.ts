@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { LanguageClient } from 'vscode-languageclient';
 import * as path from 'path';
-const { exec } = require('child_process');
+import { exec } from 'child_process';
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
 
 import { AstViewer } from './astViewer';
@@ -457,9 +457,9 @@ async function activateWithInstalledDistribution(
         progress,
         token
       );
-      
-      console.log("Start codeql visualization.....");
-      
+
+      console.log('Start codeql visualization.....');
+
       const item = qhm.addQuery(info);
       // TODO: flesh this out
       await showResultsForCompletedVisQuery(item);
@@ -467,18 +467,18 @@ async function activateWithInstalledDistribution(
       // Update the tree item context value to allow viewing that
       // SARIF file from context menu.
       await qhm.updateTreeItemContextValue(item);
-      
-      // start the visualizer manually......
-      exec('code --extensionDevelopmentPath=/Users/cijiexia/Project/vscode-codeql/vscode-debug-visualizer/extension', (err :any, stdout: any, stderr: any) => {
-          console.log(stdout);
 
-          if (err) {
-            console.log(err);
-            console.log(stderr);
-          }
+      // start the visualizer manually......
+      exec('code --extensionDevelopmentPath=../', (err: any, stdout: any, stderr: any) => {
+        console.log(stdout);
+
+        if (err) {
+          console.log(err);
+          console.log(stderr);
+        }
       });
 
-     
+
     }
   }
 
