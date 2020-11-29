@@ -48,7 +48,7 @@ import {
 } from './interface-utils';
 import { getDefaultResultSetName, ParsedResultSets } from './pure/interface-types';
 import { RawResultSet, transformBqrsResultSet, ResultSetSchema, EntityValue, ResolvableLocationValue } from './pure/bqrs-cli-types';
-// import { GraphNode, GraphVisualizationData} from '../../../vscode-debug-visualizer/data-extraction/src/CommonDataTypes'
+import { GraphNode } from '../../../vscode-debug-visualizer/data-extraction/src/CommonDataTypes';
 
 /**
  * interface.ts
@@ -494,7 +494,7 @@ export class InterfaceManager extends DisposableObject {
     }
     // Get all the nodes for our visualization
     // Note this relies on the particular format from data flow queries TODO
-    const nodes = [];
+    const nodes: GraphNode[] = [];
     {
       const selectedTable = 'nodes';
       const schema = resultSetSchemas.find(
