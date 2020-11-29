@@ -459,7 +459,15 @@ async function activateWithInstalledDistribution(
       );
       
       console.log("Start codeql visualization.....");
-
+      
+      const item = qhm.addQuery(info);
+      // TODO: flesh this out
+      await showResultsForCompletedVisQuery(item);
+      // The call to showResults potentially creates SARIF file;
+      // Update the tree item context value to allow viewing that
+      // SARIF file from context menu.
+      await qhm.updateTreeItemContextValue(item);
+      
       // start the visualizer manually......
       exec('code --extensionDevelopmentPath=/Users/cijiexia/Project/vscode-codeql/vscode-debug-visualizer/extension', (err :any, stdout: any, stderr: any) => {
           console.log(stdout);
@@ -470,13 +478,7 @@ async function activateWithInstalledDistribution(
           }
       });
 
-      const item = qhm.addQuery(info);
-      // TODO: flesh this out
-      await showResultsForCompletedVisQuery(item);
-      // The call to showResults potentially creates SARIF file;
-      // Update the tree item context value to allow viewing that
-      // SARIF file from context menu.
-      await qhm.updateTreeItemContextValue(item);
+     
     }
   }
 
