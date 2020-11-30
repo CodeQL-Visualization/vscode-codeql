@@ -1,3 +1,0 @@
-[submodule "vscode-debug-visualizer"]
-	path = vscode-debug-visualizer
-	url = https://github.com/CodeQL-Visualization/vscode-debug-visualizer.git

@@ -467,9 +467,8 @@ async function activateWithInstalledDistribution(
       // Update the tree item context value to allow viewing that
       // SARIF file from context menu.
       await qhm.updateTreeItemContextValue(item);
-
       // start the visualizer manually......
-      exec('code --extensionDevelopmentPath=../', (err: any, stdout: any, stderr: any) => {
+      exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
         console.log(stdout);
 
         if (err) {

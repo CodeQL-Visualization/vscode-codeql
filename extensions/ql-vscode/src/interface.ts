@@ -564,9 +564,8 @@ export class InterfaceManager extends DisposableObject {
     const graph = { nodes: nodes, edges: edges };
 
     console.log(JSON.stringify(graph));
-
     //write data to file 
-    fs.writeFile('../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
+    fs.writeFile(__dirname + '/../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
       if (err) {
         console.log(err);
       }
