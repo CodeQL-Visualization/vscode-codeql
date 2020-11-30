@@ -48,8 +48,7 @@ import {
 } from './interface-utils';
 import fs = require('fs');
 import { getDefaultResultSetName, ParsedResultSets } from './pure/interface-types';
-import { RawResultSet, transformBqrsResultSet, ResultSetSchema, EntityValue, ResolvableLocationValue } from './pure/bqrs-cli-types';
-import { GraphNode } from '../../../vscode-debug-visualizer/data-extraction/src/CommonDataTypes';
+import { RawResultSet, transformBqrsResultSet, ResultSetSchema, ResolvableLocationValue, EntityValue } from './pure/bqrs-cli-types';
 
 /**
  * interface.ts
@@ -446,30 +445,26 @@ export class InterfaceManager extends DisposableObject {
    * history entry.
    */
   public async showVisResults(
-    results: CompletedQuery
+    resultsArr: CompletedQuery[]
   ): Promise<void> {
-    if (results.result.resultType !== messages.QueryResultType.SUCCESS) {
-      return;
-    }
+    const resultSets = [];
+    for (const results of resultsArr) {
+      if (results.result.resultType !== messages.QueryResultType.SUCCESS) {
+        return;
+      }
 
-    const sortedResultsMap: SortedResultsMap = {};
-    results.sortedResultsInfo.forEach(
-      (v, k) =>
-        (sortedResultsMap[k] = this.convertPathPropertiesToWebviewUris(v))
-    );
+      const sortedResultsMap: SortedResultsMap = {};
+      results.sortedResultsInfo.forEach(
+        (v, k) =>
+          (sortedResultsMap[k] = this.convertPathPropertiesToWebviewUris(v))
+      );
 
-    this._displayedQuery = results;
+      this._displayedQuery = results;
+      // Note that the resultSetSchemas will return offsets for the default (unsorted) page,
+      // which may not be correct. However, in this case, it doesn't matter since we only
+      // need the first offset, which will be the same no matter which sorting we use.
+      const resultSetSchemas = await this.getResultSetSchemas(results);
 
-    // Note that the resultSetSchemas will return offsets for the default (unsorted) page,
-    // which may not be correct. However, in this case, it doesn't matter since we only
-    // need the first offset, which will be the same no matter which sorting we use.
-    const resultSetSchemas = await this.getResultSetSchemas(results);
-
-    // Find source, sink nodes from our query
-    // Note this relies on the particular format from data flow queries TODO
-    const sources = new Set();
-    const sinks = new Set();
-    {
       const selectedTable = '#select';
       const schema = resultSetSchemas.find(
         (resultSet) => resultSet.name == selectedTable
@@ -487,82 +482,65 @@ export class InterfaceManager extends DisposableObject {
           pageSize: RAW_RESULTS_PAGE_SIZE
         }
       );
-      const resultSet = transformBqrsResultSet(schema, chunk);
-      for (const row of resultSet['rows']) {
-        sources.add(this.getId((row[0] as EntityValue).url));
-        sinks.add(this.getId((row[1] as EntityValue).url));
-      }
-    }
-    // Get all the nodes for our visualization
-    // Note this relies on the particular format from data flow queries TODO
-    const nodes: GraphNode[] = [];
-    {
-      const selectedTable = 'nodes';
-      const schema = resultSetSchemas.find(
-        (resultSet) => resultSet.name == selectedTable
-      )!;
-      const resultsPath = results.getResultsPath(selectedTable);
-      const chunk = await this.cliServer.bqrsDecode(
-        resultsPath,
-        schema.name,
-        {
-          // Always send the first page.
-          // It may not wind up being the page we actually show,
-          // if there are interpreted results, but speculatively
-          // send anyway.
-          offset: schema.pagination?.offsets[0],
-          pageSize: RAW_RESULTS_PAGE_SIZE
-        }
-      );
-      const resultSet = transformBqrsResultSet(schema, chunk);
-      for (const row of resultSet['rows']) {
-        const node = row[0] as EntityValue;
-        if (node !== undefined) {
-          const id = this.getId(node.url);
-          nodes.push({
-            id: id,
-            label: node.label,
-            color: (sinks.has(id) ? 'red' : sources.has(id) ? 'orange' : 'lightblue'),
-            shape: 'box'
-          });
-        }
-      }
+      resultSets.push(transformBqrsResultSet(schema, chunk));
     }
 
-    // Get all the edges for our visualization
-    // Note this relies on the particular format from data flow queries TODO
-    const edges = [];
-    {
-      const selectedTable = 'edges';
-      const schema = resultSetSchemas.find(
-        (resultSet) => resultSet.name == selectedTable
-      )!;
-      const resultsPath = results.getResultsPath(selectedTable);
-      const chunk = await this.cliServer.bqrsDecode(
-        resultsPath,
-        schema.name,
-        {
-          // Always send the first page.
-          // It may not wind up being the page we actually show,
-          // if there are interpreted results, but speculatively
-          // send anyway.
-          offset: schema.pagination?.offsets[0],
-          pageSize: RAW_RESULTS_PAGE_SIZE
-        }
-      );
-      const resultSet = transformBqrsResultSet(schema, chunk);
-      for (const row of resultSet['rows']) {
-        const from = this.getId((row[0] as EntityValue).url);
-        const to = this.getId((row[1] as EntityValue).url);
-        edges.push({
+    const taintedNodes = new Set();
+    const nodes = new Set();
+    const edges = new Set();
+    for (const row of resultSets[0]['rows']) {
+      const source = (row[0] as EntityValue);
+      const sink = (row[1] as EntityValue);
+      const from = this.getId(source.url);
+      const to = this.getId(sink.url);
+      edges.add({
+        from: from,
+        to: to,
+        label: 'taint'
+      });
+      nodes.add({
+        id: from,
+        label: source.label,
+        color: 'orange',
+        shape: 'box'
+      });
+      nodes.add({
+        id: to,
+        label: sink.label,
+        color: 'red',
+        shape: 'box'
+      });
+      taintedNodes.add(from);
+      taintedNodes.add(to);
+    }
+    for (const row of resultSets[1]['rows']) {
+      const source = (row[0] as EntityValue);
+      const sink = (row[1] as EntityValue);
+      const from = this.getId(source.url);
+      const to = this.getId(sink.url);
+      if (!taintedNodes.has(to)) {
+        edges.add({
           from: from,
           to: to,
-          label: 'taint'
+          label: 'sanitary'
         });
+        nodes.add({
+          id: from,
+          label: source.label,
+          color: 'orange',
+          shape: 'box'
+        });
+        nodes.add({
+          id: to,
+          label: sink.label,
+          color: 'lightblue',
+          shape: 'box'
+        });
+        taintedNodes.add(from);
       }
     }
-    const graph = { nodes: nodes, edges: edges };
 
+    const graph = { nodes: Array.from(nodes), edges: Array.from(edges) };
     console.log(JSON.stringify(graph));
     //write data to file 
     fs.writeFile(__dirname + '/../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
@@ -570,7 +548,6 @@ export class InterfaceManager extends DisposableObject {
         console.log(err);
       }
     });
-
   }
 
   /**

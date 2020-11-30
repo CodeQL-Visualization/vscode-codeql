@@ -23,6 +23,8 @@ import { QueryHistoryItemOptions } from './query-history';
 import * as qsClient from './queryserver-client';
 import { isQuickQueryPath } from './quick-query';
 import { upgradeDatabase } from './upgrades';
+// import { valid } from 'semver';
+import { readFileSync, writeFileSync } from 'fs';
 
 /**
  * run-queries.ts
@@ -569,6 +571,153 @@ export async function compileAndRunQueryAgainstDatabase(
 
     return createSyntheticResult(query, db, historyItemOptions, 'Query had compilation errors', messages.QueryResultType.OTHER_ERROR);
   }
+}
+
+function modifyQuery(queryPath: string): string {
+  const queryFile = readFileSync(queryPath, 'utf-8');
+  const begin = queryFile.indexOf('override predicate isSanitizer(');
+  let start = queryFile.indexOf('{', begin) + 1;
+  let count = 1;
+  while (count != 0) {
+    const open = queryFile.indexOf('{', start);
+    const close = queryFile.indexOf('}', start);
+    const next = Math.min(open == -1 ? Infinity : open, close == -1 ? Infinity : close);
+    count += queryFile.charAt(next) == '{' ? 1 : -1;
+    start = next + 1;
+  }
+  const newQueryPath = queryPath + 'temp.ql'; // TODO do temporary files properly
+  const newQueryFile = queryFile.substr(0, begin) + queryFile.substr(start);
+  writeFileSync(newQueryPath, newQueryFile);
+  return newQueryPath;
+}
+
+export async function compileAndRunVisQueryAgainstDatabase(
+  cliServer: cli.CodeQLCliServer,
+  qs: qsClient.QueryServerClient,
+  db: DatabaseItem,
+  quickEval: boolean,
+  selectedQueryUri: Uri | undefined,
+  progress: helpers.ProgressCallback,
+  token: CancellationToken,
+  templates?: messages.TemplateDefinitions,
+): Promise<QueryWithResults[]> {
+  if (!db.contents || !db.contents.dbSchemeUri) {
+    throw new Error(`Database ${db.databaseUri} does not have a CodeQL database scheme.`);
+  }
+
+  // Determine which query to run, based on the selection and the active editor.
+  const { queryPath, quickEvalPosition, quickEvalText } = await determineSelectedQuery(selectedQueryUri, quickEval);
+
+  const results = [];
+  const queryPaths = [queryPath, modifyQuery(queryPath)];
+  for (const queryPath of queryPaths) {
+    const historyItemOptions: QueryHistoryItemOptions = {};
+    historyItemOptions.isQuickQuery === isQuickQueryPath(queryPath);
+    if (quickEval) {
+      historyItemOptions.queryText = quickEvalText;
+    } else {
+      historyItemOptions.queryText = await fs.readFile(queryPath, 'utf8');
+    }
+
+    // Get the workspace folder paths.
+    const diskWorkspaceFolders = helpers.getOnDiskWorkspaceFolders();
+    // Figure out the library path for the query.
+    const packConfig = await cliServer.resolveLibraryPath(diskWorkspaceFolders, queryPath);
+
+    // Check whether the query has an entirely different schema from the
+    // database. (Queries that merely need the database to be upgraded
+    // won't trigger this check)
+    // This test will produce confusing results if we ever change the name of the database schema files.
+    const querySchemaName = path.basename(packConfig.dbscheme);
+    const dbSchemaName = path.basename(db.contents.dbSchemeUri.fsPath);
+    if (querySchemaName != dbSchemaName) {
+      logger.log(`Query schema was ${querySchemaName}, but database schema was ${dbSchemaName}.`);
+      throw new Error(`The query ${path.basename(queryPath)} cannot be run against the selected database: their target languages are different. Please select a different database and try again.`);
+    }
+
+    const qlProgram: messages.QlProgram = {
+      // The project of the current document determines which library path
+      // we use. The `libraryPath` field in this server message is relative
+      // to the workspace root, not to the project root.
+      libraryPath: packConfig.libraryPath,
+      // Since we are compiling and running a query against a database,
+      // we use the database's DB scheme here instead of the DB scheme
+      // from the current document's project.
+      dbschemePath: db.contents.dbSchemeUri.fsPath,
+      queryPath: queryPath
+    };
+
+    // Read the query metadata if possible, to use in the UI.
+    let metadata: QueryMetadata | undefined;
+    try {
+      metadata = await cliServer.resolveMetadata(qlProgram.queryPath);
+    } catch (e) {
+      // Ignore errors and provide no metadata.
+      logger.log(`Couldn't resolve metadata for ${qlProgram.queryPath}: ${e}`);
+    }
+
+    const query = new QueryInfo(qlProgram, db, packConfig.dbscheme, quickEvalPosition, metadata, templates);
+    await checkDbschemeCompatibility(cliServer, qs, query, progress, token);
+
+    let errors;
+    try {
+      errors = await query.compile(qs, progress, token);
+    } catch (e) {
+      if (e instanceof ResponseError && e.code == ErrorCodes.RequestCancelled) {
+        return [createSyntheticResult(query, db, historyItemOptions, 'Query cancelled', messages.QueryResultType.CANCELLATION)];
+      } else {
+        throw e;
+      }
+    }
+
+    if (errors.length == 0) {
+      const result = await query.run(qs, progress, token);
+      if (result.resultType !== messages.QueryResultType.SUCCESS) {
+        const message = result.message || 'Failed to run query';
+        logger.log(message);
+        helpers.showAndLogErrorMessage(message);
+      }
+      results.push({
+        query,
+        result,
+        database: {
+          name: db.name,
+          databaseUri: db.databaseUri.toString(true)
+        },
+        options: historyItemOptions,
+        logFileLocation: result.logFileLocation,
+        dispose: () => {
+          qs.logger.removeAdditionalLogLocation(result.logFileLocation);
+        }
+      });
+    } else {
+      // Error dialogs are limited in size and scrollability,
+      // so we include a general description of the problem,
+      // and direct the user to the output window for the detailed compilation messages.
+      // However we don't show quick eval errors there so we need to display them anyway.
+      qs.logger.log(`Failed to compile query ${query.program.queryPath} against database scheme ${query.program.dbschemePath}:`);
+
+      const formattedMessages: string[] = [];
+
+      for (const error of errors) {
+        const message = error.message || '[no error message available]';
+        const formatted = `ERROR: ${message} (${error.position.fileName}:${error.position.line}:${error.position.column}:${error.position.endLine}:${error.position.endColumn})`;
+        formattedMessages.push(formatted);
+        qs.logger.log(formatted);
+      }
+      if (quickEval && formattedMessages.length <= 3) {
+        helpers.showAndLogErrorMessage('Quick evaluation compilation failed: \n' + formattedMessages.join('\n'));
+      } else {
+        helpers.showAndLogErrorMessage((quickEval ? 'Quick evaluation' : 'Query') +
+          ' compilation failed. Please make sure there are no errors in the query, the database is up to date,' +
+          ' and the query and database use the same target language. For more details on the error, go to View > Output,' +
+          ' and choose CodeQL Query Server from the dropdown.');
+      }
+
+      return [createSyntheticResult(query, db, historyItemOptions, 'Query had compilation errors', messages.QueryResultType.OTHER_ERROR)];
+    }
+  }
+  return results;
 }
 
 function createSyntheticResult(

@@ -55,7 +55,7 @@ import { QueryHistoryManager } from './query-history';
 import { CompletedQuery } from './query-results';
 import * as qsClient from './queryserver-client';
 import { displayQuickQuery } from './quick-query';
-import { compileAndRunQueryAgainstDatabase, tmpDirDisposal } from './run-queries';
+import { compileAndRunQueryAgainstDatabase, compileAndRunVisQueryAgainstDatabase, tmpDirDisposal } from './run-queries';
 import { QLTestAdapterFactory } from './test-adapter';
 import { TestUIService } from './test-ui';
 import { CompareInterfaceManager } from './compare/compare-interface';
@@ -402,9 +402,9 @@ async function activateWithInstalledDistribution(
   }
 
   async function showResultsForCompletedVisQuery(
-    query: CompletedQuery
+    queries: CompletedQuery[]
   ): Promise<void> {
-    await intm.showVisResults(query);
+    await intm.showVisResults(queries);
   }
 
   async function compileAndRunQuery(
@@ -448,7 +448,7 @@ async function activateWithInstalledDistribution(
       if (dbItem === undefined) {
         throw new Error('Can\'t run query without a selected database');
       }
-      const info = await compileAndRunQueryAgainstDatabase(
+      const infos = await compileAndRunVisQueryAgainstDatabase(
         cliServer,
         qs,
         dbItem,
@@ -456,28 +456,32 @@ async function activateWithInstalledDistribution(
         selectedQuery,
         progress,
         token
-      );
+      ); compileAndRunQueryAgainstDatabase;
 
       console.log('Start codeql visualization.....');
-
-      const item = qhm.addQuery(info);
-      // TODO: flesh this out
-      await showResultsForCompletedVisQuery(item);
-      // The call to showResults potentially creates SARIF file;
-      // Update the tree item context value to allow viewing that
-      // SARIF file from context menu.
-      await qhm.updateTreeItemContextValue(item);
-      // start the visualizer manually......
-      exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
-        console.log(stdout);
-
-        if (err) {
-          console.log(err);
-          console.log(stderr);
+      if (infos) {
+        const items = [];
+        for (const info of infos) {
+          items.push(qhm.addQuery(info));
         }
-      });
+        // TODO: flesh this out
+        await showResultsForCompletedVisQuery(items);
+        // The call to showResults potentially creates SARIF file;
+        // Update the tree item context value to allow viewing that
+        // SARIF file from context menu.
+        for (const item of items) {
+          await qhm.updateTreeItemContextValue(item);
+        }
+        // start the visualizer manually......
+        exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
+          console.log(stdout);
 
-
+          if (err) {
+            console.log(err);
+            console.log(stderr);
+          }
+        });
+      }
     }
   }
 
