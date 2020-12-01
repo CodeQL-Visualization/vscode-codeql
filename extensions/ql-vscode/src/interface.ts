@@ -513,30 +513,32 @@ export class InterfaceManager extends DisposableObject {
       taintedNodes.add(from);
       taintedNodes.add(to);
     }
-    for (const row of resultSets[1]['rows']) {
-      const source = (row[0] as EntityValue);
-      const sink = (row[1] as EntityValue);
-      const from = this.getId(source.url);
-      const to = this.getId(sink.url);
-      if (!taintedNodes.has(to)) {
-        edges.add({
-          from: from,
-          to: to,
-          label: 'sanitary'
-        });
-        nodes.add({
-          id: from,
-          label: source.label,
-          color: 'orange',
-          shape: 'box'
-        });
-        nodes.add({
-          id: to,
-          label: sink.label,
-          color: 'lightblue',
-          shape: 'box'
-        });
-        taintedNodes.add(from);
+    if (resultSets[1]) {
+      for (const row of resultSets[1]['rows']) {
+        const source = (row[0] as EntityValue);
+        const sink = (row[1] as EntityValue);
+        const from = this.getId(source.url);
+        const to = this.getId(sink.url);
+        if (!taintedNodes.has(to)) {
+          edges.add({
+            from: from,
+            to: to,
+            label: 'sanitary'
+          });
+          nodes.add({
+            id: from,
+            label: source.label,
+            color: 'orange',
+            shape: 'box'
+          });
+          nodes.add({
+            id: to,
+            label: sink.label,
+            color: 'lightblue',
+            shape: 'box'
+          });
+          taintedNodes.add(from);
+        }
       }
     }
 

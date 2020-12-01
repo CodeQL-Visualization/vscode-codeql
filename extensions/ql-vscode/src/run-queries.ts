@@ -576,6 +576,7 @@ export async function compileAndRunQueryAgainstDatabase(
 function modifyQuery(queryPath: string): string {
   const queryFile = readFileSync(queryPath, 'utf-8');
   const begin = queryFile.indexOf('override predicate isSanitizer(');
+  if (begin == -1) { return 'none'; }
   let start = queryFile.indexOf('{', begin) + 1;
   let count = 1;
   while (count != 0) {
@@ -609,7 +610,9 @@ export async function compileAndRunVisQueryAgainstDatabase(
   const { queryPath, quickEvalPosition, quickEvalText } = await determineSelectedQuery(selectedQueryUri, quickEval);
 
   const results = [];
-  const queryPaths = [queryPath, modifyQuery(queryPath)];
+  const queryPaths = [queryPath];
+  const newQueryPath = modifyQuery(queryPath);
+  if (newQueryPath != 'none') { queryPaths.push(newQueryPath); }
   for (const queryPath of queryPaths) {
     const historyItemOptions: QueryHistoryItemOptions = {};
     historyItemOptions.isQuickQuery === isQuickQueryPath(queryPath);
