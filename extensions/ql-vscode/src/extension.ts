@@ -14,7 +14,7 @@ import {
 } from 'vscode';
 import { LanguageClient } from 'vscode-languageclient';
 import * as path from 'path';
-import { exec } from 'child_process';
+//import { exec } from 'child_process';
 import { testExplorerExtensionId, TestHub } from 'vscode-test-adapter-api';
 
 import { AstViewer } from './astViewer';
@@ -473,14 +473,15 @@ async function activateWithInstalledDistribution(
           await qhm.updateTreeItemContextValue(item);
         }
         // start the visualizer manually......
-        exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
-          console.log(stdout);
+        //exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
+        //console.log(stdout);
 
-          if (err) {
-            console.log(err);
-            console.log(stderr);
-          }
-        });
+        //if (err) {
+        //console.log(err);
+        //console.log(stderr);
+        //}
+        //});
+        commands.executeCommand('vscode-debug-visualizer.codeql-visualizer', __dirname + '/../../../codeqlVisData.json');
       }
     }
   }
