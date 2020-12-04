@@ -416,6 +416,21 @@ export class InterfaceManager extends DisposableObject {
     });
   }
 
+  public getPartialId(url: any): string {
+    let id = '';
+    if (url !== undefined) {
+      const temp = url as ResolvableLocationValue;
+      if (temp !== undefined) {
+        id = [url.startLine,
+        url.startColumn,
+        ].join('.');
+      } else {
+        id = url as string; // TODO
+      }
+    }
+    return id;
+  }
+
   public getId(url: any): string {
     let id = '';
     if (url !== undefined) {
@@ -434,39 +449,29 @@ export class InterfaceManager extends DisposableObject {
     return id;
   }
 
-
-  /**
-   * TODO: Show visualized results in webview panel.
-   * @param results Evaluation info for the executed query.
-   * @param shouldKeepOldResultsWhileRendering Should keep old results while rendering.
-   * @param forceReveal Force the webview panel to be visible and
-   * Appropriate when the user has just performed an explicit
-   * UI interaction requesting results, e.g. clicking on a query
-   * history entry.
-   */
-  public async showVisResults(
-    resultsArr: CompletedQuery[],
+  public async getResultSets(
+    resultsArr: [string, CompletedQuery][],
     fullPathVis: boolean
-  ): Promise<void> {
-    const resultSets = [];
-    for (const results of resultsArr) {
+  ): Promise<[string, RawResultSet][]> {
+    const resultSets: [string, RawResultSet][] = [];
+    for (const result of resultsArr) {
+      const [name, results] = result;
       if (results.result.resultType !== messages.QueryResultType.SUCCESS) {
-        return;
+        return [];
       }
-
       const sortedResultsMap: SortedResultsMap = {};
       results.sortedResultsInfo.forEach(
         (v, k) =>
           (sortedResultsMap[k] = this.convertPathPropertiesToWebviewUris(v))
       );
-
       this._displayedQuery = results;
       // Note that the resultSetSchemas will return offsets for the default (unsorted) page,
       // which may not be correct. However, in this case, it doesn't matter since we only
       // need the first offset, which will be the same no matter which sorting we use.
       const resultSetSchemas = await this.getResultSetSchemas(results);
 
-      const selectedTable = '#select';
+      const selectedTable = (fullPathVis || name == 'sink' ? 'edges' : '#select');
+
       const schema = resultSetSchemas.find(
         (resultSet) => resultSet.name == selectedTable
       )!;
@@ -475,23 +480,23 @@ export class InterfaceManager extends DisposableObject {
         resultsPath,
         schema.name,
         {
-          // Always send the first page.
-          // It may not wind up being the page we actually show,
-          // if there are interpreted results, but speculatively
-          // send anyway.
           offset: schema.pagination?.offsets[0],
           pageSize: RAW_RESULTS_PAGE_SIZE
         }
       );
-      resultSets.push(transformBqrsResultSet(schema, chunk));
+      resultSets.push([name, transformBqrsResultSet(schema, chunk)]);
     }
 
-    console.log('Full path visualization: ' + fullPathVis);
+    return resultSets;
+  }
 
+  public getShortcutPaths(
+    resultSets: [string, RawResultSet][]
+  ) {
     const taintedNodes = new Set();
     const nodes = new Set();
     const edges = new Set();
-    for (const row of resultSets[0]['rows']) {
+    for (const row of resultSets[0][1]['rows']) {
       const source = (row[0] as EntityValue);
       const sink = (row[1] as EntityValue);
       const from = this.getId(source.url);
@@ -503,21 +508,29 @@ export class InterfaceManager extends DisposableObject {
       });
       nodes.add({
         id: from,
-        label: source.label,
+        label: source.label + '    ' + this.getPartialId(source.url),
         color: 'orange',
         shape: 'box'
       });
       nodes.add({
         id: to,
-        label: sink.label,
+        label: sink.label + '    ' + this.getPartialId(sink.url),
         color: 'red',
         shape: 'box'
       });
       taintedNodes.add(from);
       taintedNodes.add(to);
     }
-    if (resultSets[1]) {
-      for (const row of resultSets[1]['rows']) {
+
+    let sani = null;
+    for (const set of resultSets) {
+      if (set[0] == 'sani') {
+        sani = set;
+        break;
+      }
+    }
+    if (sani != null) {
+      for (const row of resultSets[1][1]['rows']) {
         const source = (row[0] as EntityValue);
         const sink = (row[1] as EntityValue);
         const from = this.getId(source.url);
@@ -530,13 +543,13 @@ export class InterfaceManager extends DisposableObject {
           });
           nodes.add({
             id: from,
-            label: source.label,
+            label: source.label + '    ' + this.getPartialId(source.url),
             color: 'orange',
             shape: 'box'
           });
           nodes.add({
             id: to,
-            label: sink.label,
+            label: sink.label + '    ' + this.getPartialId(sink.url),
             color: 'lightblue',
             shape: 'box'
           });
@@ -544,9 +557,112 @@ export class InterfaceManager extends DisposableObject {
         }
       }
     }
+    return { nodes, edges };
+  }
 
-    const graph = { nodes: Array.from(nodes), edges: Array.from(edges) };
-    console.log(JSON.stringify(graph));
+  public getFullPaths(
+    resultSets: [string, RawResultSet][]
+  ) {
+    const taintedNodes = new Set();
+    const sinkNodes = new Set();
+    const nodes = new Set();
+    const edges = new Set();
+    for (const row of resultSets[0][1]['rows']) {
+      const source = (row[0] as EntityValue);
+      const sink = (row[1] as EntityValue);
+      const from = this.getId(source.url);
+      const to = this.getId(sink.url);
+      edges.add({
+        from: from,
+        to: to,
+        label: 'taint'
+      });
+      nodes.add({
+        id: from,
+        label: source.label + '    ' + this.getPartialId(source.url),
+        color: 'orange',
+        shape: 'box'
+      });
+      nodes.add({
+        id: to,
+        label: sink.label + '    ' + this.getPartialId(sink.url),
+        color: 'orange',
+        shape: 'box'
+      });
+      taintedNodes.add(from);
+      taintedNodes.add(to);
+    }
+
+    let sani = null;
+    let sink = null;
+    for (const set of resultSets) {
+      if (set[0] == 'sani') { sani = set; }
+      if (set[0] == 'sink') { sink = set; }
+    }
+    if (sink != null) {
+      for (const row of resultSets[1][1]['rows']) {
+        const source = (row[0] as EntityValue);
+        const from = this.getId(source.url);
+        sinkNodes.add(from);
+      }
+    }
+    if (sani != null) {
+      for (const row of resultSets[1][1]['rows']) {
+        const source = (row[0] as EntityValue);
+        const sink = (row[1] as EntityValue);
+        const from = this.getId(source.url);
+        const to = this.getId(sink.url);
+        if (!taintedNodes.has(to)) {
+          const isTainted = sinkNodes.has(to);
+          edges.add({
+            from: from,
+            to: to,
+            label: isTainted ? 'tainted' : 'sanitary'
+          });
+          nodes.add({
+            id: from,
+            label: source.label + '    ' + this.getPartialId(source.url),
+            color: sinkNodes.has(from) ? 'orange' : 'lightblue',
+            shape: 'box'
+          });
+          nodes.add({
+            id: to,
+            label: sink.label + '    ' + this.getPartialId(sink.url),
+            color: isTainted ? 'orange' : 'lightblue',
+            shape: 'box'
+          });
+          taintedNodes.add(from);
+        }
+      }
+    }
+    return { nodes, edges };
+  }
+
+  /**
+   * TODO: Show visualized results in webview panel.
+   * @param results Evaluation info for the executed query.
+   * @param shouldKeepOldResultsWhileRendering Should keep old results while rendering.
+   * @param forceReveal Force the webview panel to be visible and
+   * Appropriate when the user has just performed an explicit
+   * UI interaction requesting results, e.g. clicking on a query
+   * history entry.
+   */
+  public async showVisResults(
+    resultsArr: [string, CompletedQuery][],
+    fullPathVis: boolean
+  ): Promise<void> {
+    const resultSets = await this.getResultSets(resultsArr, fullPathVis);
+    if (resultSets == []) { return; }
+    let graph = {};
+    // Get the graph for the appropriate level of visualization
+    if (fullPathVis) {
+      const { nodes, edges } = this.getFullPaths(resultSets);
+      graph = { nodes: Array.from(nodes), edges: Array.from(edges) };
+    } else {
+      const { nodes, edges } = this.getShortcutPaths(resultSets);
+      graph = { nodes: Array.from(nodes), edges: Array.from(edges) };
+    }
+
     //write data to file 
     fs.writeFile(__dirname + '/../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
       if (err) {

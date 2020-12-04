@@ -402,7 +402,7 @@ async function activateWithInstalledDistribution(
   }
 
   async function showResultsForCompletedVisQuery(
-    queries: CompletedQuery[],
+    queries: [string, CompletedQuery][],
     fullPathVis: boolean
   ): Promise<void> {
     await intm.showVisResults(queries, fullPathVis);
@@ -457,14 +457,15 @@ async function activateWithInstalledDistribution(
         quickEval,
         selectedQuery,
         progress,
-        token
-      ); compileAndRunQueryAgainstDatabase;
+        token,
+        fullPathVis
+      );
 
       console.log('Start codeql visualization.....');
       if (infos) {
-        const items = [];
+        const items: [string, CompletedQuery][] = [];
         for (const info of infos) {
-          items.push(qhm.addQuery(info));
+          items.push([info[0], qhm.addQuery(info[1])]);
         }
         // TODO: flesh this out
         await showResultsForCompletedVisQuery(items, fullPathVis);
@@ -472,7 +473,7 @@ async function activateWithInstalledDistribution(
         // Update the tree item context value to allow viewing that
         // SARIF file from context menu.
         for (const item of items) {
-          await qhm.updateTreeItemContextValue(item);
+          await qhm.updateTreeItemContextValue(item[1]);
         }
         // start the visualizer manually......
         //exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {

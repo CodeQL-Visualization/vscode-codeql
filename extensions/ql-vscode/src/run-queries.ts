@@ -573,9 +573,13 @@ export async function compileAndRunQueryAgainstDatabase(
   }
 }
 
-function modifyQuery(queryPath: string): string {
+function modifyQuery(
+  queryPath: string,
+  removedFunction: string,
+  newFunction: string
+): string {
   const queryFile = readFileSync(queryPath, 'utf-8');
-  const begin = queryFile.indexOf('override predicate isSanitizer(');
+  const begin = queryFile.indexOf(removedFunction);
   if (begin == -1) { return 'none'; }
   let start = queryFile.indexOf('{', begin) + 1;
   let count = 1;
@@ -586,8 +590,11 @@ function modifyQuery(queryPath: string): string {
     count += queryFile.charAt(next) == '{' ? 1 : -1;
     start = next + 1;
   }
-  const newQueryPath = queryPath + 'temp.ql'; // TODO do temporary files properly
-  const newQueryFile = queryFile.substr(0, begin) + queryFile.substr(start);
+  const newQueryPath = (
+    queryPath.substr(0, queryPath.lastIndexOf('/')) + '/.' +
+    String(crypto.createHash('sha256').update(queryPath + removedFunction + newFunction).digest('hex')) + '.ql'
+  ); // TODO do temporary files properly (cleanup)
+  const newQueryFile = queryFile.substr(0, begin) + newFunction + queryFile.substr(start);
   writeFileSync(newQueryPath, newQueryFile);
   return newQueryPath;
 }
@@ -600,8 +607,9 @@ export async function compileAndRunVisQueryAgainstDatabase(
   selectedQueryUri: Uri | undefined,
   progress: helpers.ProgressCallback,
   token: CancellationToken,
+  fullPathVis: boolean,
   templates?: messages.TemplateDefinitions,
-): Promise<QueryWithResults[]> {
+): Promise<[string, QueryWithResults][]> {
   if (!db.contents || !db.contents.dbSchemeUri) {
     throw new Error(`Database ${db.databaseUri} does not have a CodeQL database scheme.`);
   }
@@ -609,11 +617,19 @@ export async function compileAndRunVisQueryAgainstDatabase(
   // Determine which query to run, based on the selection and the active editor.
   const { queryPath, quickEvalPosition, quickEvalText } = await determineSelectedQuery(selectedQueryUri, quickEval);
 
-  const results = [];
-  const queryPaths = [queryPath];
-  const newQueryPath = modifyQuery(queryPath);
-  if (newQueryPath != 'none') { queryPaths.push(newQueryPath); }
-  for (const queryPath of queryPaths) {
+  const results: [string, QueryWithResults][] = [];
+  // Get additional queries if needed
+  const queryPaths = [['original', queryPath]];
+  const saniQueryPath = modifyQuery(queryPath, 'override predicate isSanitizer(', '');
+  if (saniQueryPath != 'none') { queryPaths.push(['sani', saniQueryPath]); }
+  if (fullPathVis) {
+    const sinkQueryPath = modifyQuery(queryPath, 'override predicate isSink(',
+      'override predicate isSink(DataFlow::Node sink) {not isSource(sink)}');
+    if (sinkQueryPath != 'none') { queryPaths.push(['sink', sinkQueryPath]); }
+  }
+  // Run each query
+  for (const queryInfo of queryPaths) {
+    const [name, queryPath] = queryInfo;
     const historyItemOptions: QueryHistoryItemOptions = {};
     historyItemOptions.isQuickQuery === isQuickQueryPath(queryPath);
     if (quickEval) {
@@ -667,7 +683,7 @@ export async function compileAndRunVisQueryAgainstDatabase(
       errors = await query.compile(qs, progress, token);
     } catch (e) {
       if (e instanceof ResponseError && e.code == ErrorCodes.RequestCancelled) {
-        return [createSyntheticResult(query, db, historyItemOptions, 'Query cancelled', messages.QueryResultType.CANCELLATION)];
+        return [[name, createSyntheticResult(query, db, historyItemOptions, 'Query cancelled', messages.QueryResultType.CANCELLATION)]];
       } else {
         throw e;
       }
@@ -680,19 +696,22 @@ export async function compileAndRunVisQueryAgainstDatabase(
         logger.log(message);
         helpers.showAndLogErrorMessage(message);
       }
-      results.push({
-        query,
-        result,
-        database: {
-          name: db.name,
-          databaseUri: db.databaseUri.toString(true)
-        },
-        options: historyItemOptions,
-        logFileLocation: result.logFileLocation,
-        dispose: () => {
-          qs.logger.removeAdditionalLogLocation(result.logFileLocation);
-        }
-      });
+      results.push([
+        name,
+        {
+          query,
+          result,
+          database: {
+            name: db.name,
+            databaseUri: db.databaseUri.toString(true)
+          },
+          options: historyItemOptions,
+          logFileLocation: result.logFileLocation,
+          dispose: () => {
+            qs.logger.removeAdditionalLogLocation(result.logFileLocation);
+          }
+        } as QueryWithResults
+      ]);
     } else {
       // Error dialogs are limited in size and scrollability,
       // so we include a general description of the problem,
@@ -717,7 +736,7 @@ export async function compileAndRunVisQueryAgainstDatabase(
           ' and choose CodeQL Query Server from the dropdown.');
       }
 
-      return [createSyntheticResult(query, db, historyItemOptions, 'Query had compilation errors', messages.QueryResultType.OTHER_ERROR)];
+      return [[name, createSyntheticResult(query, db, historyItemOptions, 'Query had compilation errors', messages.QueryResultType.OTHER_ERROR)]];
     }
   }
   return results;
