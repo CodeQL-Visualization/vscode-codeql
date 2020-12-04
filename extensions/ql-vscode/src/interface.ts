@@ -445,7 +445,8 @@ export class InterfaceManager extends DisposableObject {
    * history entry.
    */
   public async showVisResults(
-    resultsArr: CompletedQuery[]
+    resultsArr: CompletedQuery[],
+    fullPathVis: boolean
   ): Promise<void> {
     const resultSets = [];
     for (const results of resultsArr) {
@@ -484,6 +485,8 @@ export class InterfaceManager extends DisposableObject {
       );
       resultSets.push(transformBqrsResultSet(schema, chunk));
     }
+
+    console.log('Full path visualization: ' + fullPathVis);
 
     const taintedNodes = new Set();
     const nodes = new Set();

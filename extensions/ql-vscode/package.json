@@ -182,6 +182,10 @@
         "title": "CodeQL: Run Visualized Query"
       },
       {
+        "command": "codeQL.runFullVisQuery",
+        "title": "CodeQL: Run Visualized Query (Full Path)"
+      },
+      {
         "command": "codeQL.runQueries",
         "title": "CodeQL: Run Queries in Selected Files"
       },
@@ -534,6 +538,10 @@
           "when": "resourceLangId == ql && resourceExtname == .ql"
         },
         {
+          "command": "codeQL.runFullVisQuery",
+          "when": "resourceLangId == ql && resourceExtname == .ql"
+        },
+        {
           "command": "codeQL.runQueries",
           "when": "false"
         },
@@ -653,6 +661,10 @@
         },
         {
           "command": "codeQL.runVisQuery",
+          "when": "editorLangId == ql && resourceExtname == .ql"
+        },
+        {
+          "command": "codeQL.runFullVisQuery",
           "when": "editorLangId == ql && resourceExtname == .ql"
         },
         {

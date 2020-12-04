@@ -402,9 +402,10 @@ async function activateWithInstalledDistribution(
   }
 
   async function showResultsForCompletedVisQuery(
-    queries: CompletedQuery[]
+    queries: CompletedQuery[],
+    fullPathVis: boolean
   ): Promise<void> {
-    await intm.showVisResults(queries);
+    await intm.showVisResults(queries, fullPathVis);
   }
 
   async function compileAndRunQuery(
@@ -442,6 +443,7 @@ async function activateWithInstalledDistribution(
     selectedQuery: Uri | undefined,
     progress: helpers.ProgressCallback,
     token: CancellationToken,
+    fullPathVis: boolean,
   ): Promise<void> {
     if (qs !== undefined) {
       const dbItem = await databaseUI.getDatabaseItem(progress, token);
@@ -465,7 +467,7 @@ async function activateWithInstalledDistribution(
           items.push(qhm.addQuery(info));
         }
         // TODO: flesh this out
-        await showResultsForCompletedVisQuery(items);
+        await showResultsForCompletedVisQuery(items, fullPathVis);
         // The call to showResults potentially creates SARIF file;
         // Update the tree item context value to allow viewing that
         // SARIF file from context menu.
@@ -541,9 +543,23 @@ async function activateWithInstalledDistribution(
         progress: helpers.ProgressCallback,
         token: CancellationToken,
         uri: Uri | undefined
-      ) => await compileAndRunVisQuery(false, uri, progress, token),
+      ) => await compileAndRunVisQuery(false, uri, progress, token, false),
       {
         title: 'Running visualized query',
+        cancellable: true
+      }
+    )
+  );
+  ctx.subscriptions.push(
+    helpers.commandRunnerWithProgress(
+      'codeQL.runFullVisQuery',
+      async (
+        progress: helpers.ProgressCallback,
+        token: CancellationToken,
+        uri: Uri | undefined
+      ) => await compileAndRunVisQuery(false, uri, progress, token, true),
+      {
+        title: 'Running visualized query with full path',
         cancellable: true
       }
     )
