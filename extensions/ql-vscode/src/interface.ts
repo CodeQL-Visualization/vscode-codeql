@@ -470,21 +470,25 @@ export class InterfaceManager extends DisposableObject {
       // need the first offset, which will be the same no matter which sorting we use.
       const resultSetSchemas = await this.getResultSetSchemas(results);
 
-      const selectedTable = (fullPathVis || name == 'sink' ? 'edges' : '#select');
+      if (!fullPathVis && name == 'sink') continue;
 
-      const schema = resultSetSchemas.find(
-        (resultSet) => resultSet.name == selectedTable
-      )!;
-      const resultsPath = results.getResultsPath(selectedTable);
-      const chunk = await this.cliServer.bqrsDecode(
-        resultsPath,
-        schema.name,
-        {
-          offset: schema.pagination?.offsets[0],
-          pageSize: RAW_RESULTS_PAGE_SIZE
-        }
-      );
-      resultSets.push([name, transformBqrsResultSet(schema, chunk)]);
+      const selectedTables = (fullPathVis ? ['edges', '#select'] : ['#select']);
+
+      for (const selectedTable of selectedTables) {
+        const schema = resultSetSchemas.find(
+          (resultSet) => resultSet.name == selectedTable
+        )!;
+        const resultsPath = results.getResultsPath(selectedTable);
+        const chunk = await this.cliServer.bqrsDecode(
+          resultsPath,
+          schema.name,
+          {
+            offset: schema.pagination?.offsets[0],
+            pageSize: RAW_RESULTS_PAGE_SIZE
+          }
+        );
+        resultSets.push([name + (fullPathVis ? '.' + selectedTable : ''), transformBqrsResultSet(schema, chunk)]);
+      }
     }
 
     return resultSets;
@@ -539,7 +543,7 @@ export class InterfaceManager extends DisposableObject {
           edges.add({
             from: from,
             to: to,
-            label: 'sanitary'
+            label: 'sanitized'
           });
           nodes.add({
             id: from,
@@ -550,7 +554,7 @@ export class InterfaceManager extends DisposableObject {
           nodes.add({
             id: to,
             label: sink.label + '    ' + this.getPartialId(sink.url),
-            color: 'lightblue',
+            color: 'steelblue',
             shape: 'box'
           });
           taintedNodes.add(from);
@@ -580,34 +584,36 @@ export class InterfaceManager extends DisposableObject {
       nodes.add({
         id: from,
         label: source.label + '    ' + this.getPartialId(source.url),
-        color: 'orange',
+        color: 'gold',
         shape: 'box'
       });
       nodes.add({
         id: to,
         label: sink.label + '    ' + this.getPartialId(sink.url),
-        color: 'orange',
+        color: 'gold',
         shape: 'box'
       });
       taintedNodes.add(from);
       taintedNodes.add(to);
     }
 
-    let sani = null;
-    let sink = null;
+    let sani, sink = null;
     for (const set of resultSets) {
-      if (set[0] == 'sani') { sani = set; }
-      if (set[0] == 'sink') { sink = set; }
+      if (set[0] == 'sani.edges') { sani = set[1]; }
+      if (set[0] == 'sink.edges') { sink = set[1]; }
     }
     if (sink != null) {
-      for (const row of resultSets[1][1]['rows']) {
+      for (const row of sink['rows']) {
         const source = (row[0] as EntityValue);
+        const sink = (row[1] as EntityValue);
         const from = this.getId(source.url);
+        const to = this.getId(sink.url);
         sinkNodes.add(from);
+        sinkNodes.add(to);
       }
     }
     if (sani != null) {
-      for (const row of resultSets[1][1]['rows']) {
+      for (const row of sani['rows']) {
         const source = (row[0] as EntityValue);
         const sink = (row[1] as EntityValue);
         const from = this.getId(source.url);
@@ -617,24 +623,53 @@ export class InterfaceManager extends DisposableObject {
           edges.add({
             from: from,
             to: to,
-            label: isTainted ? 'tainted' : 'sanitary'
+            label: isTainted ? 'tainted' : 'sanitized'
           });
           nodes.add({
             id: from,
             label: source.label + '    ' + this.getPartialId(source.url),
-            color: sinkNodes.has(from) ? 'orange' : 'lightblue',
+            color: sinkNodes.has(from) ? 'gold' : 'lightblue',
             shape: 'box'
           });
           nodes.add({
             id: to,
             label: sink.label + '    ' + this.getPartialId(sink.url),
-            color: isTainted ? 'orange' : 'lightblue',
+            color: isTainted ? 'gold' : 'lightblue',
             shape: 'box'
           });
           taintedNodes.add(from);
         }
       }
     }
+
+    const endPoints = new Array<RawResultSet>(2);
+    for (const set of resultSets) {
+      if (set[0] == 'original.#select') endPoints[0] = set[1];
+      if (set[0] == 'sani.#select') endPoints[1] = set[1];
+    }
+    for (const set of endPoints) {
+      if (set) {
+        for (const row of set['rows']) {
+          const source = (row[0] as EntityValue);
+          const sink = (row[1] as EntityValue);
+          const from = this.getId(source.url);
+          const to = this.getId(sink.url);
+          nodes.add({
+            id: from,
+            label: source.label + '    ' + this.getPartialId(source.url),
+            color: 'orange',
+            shape: 'box'
+          });
+          nodes.add({
+            id: to,
+            label: sink.label + '    ' + this.getPartialId(sink.url),
+            color: taintedNodes.has(to) ? 'red' : 'steelblue',
+            shape: 'box'
+          });
+        }
+      }
+    }
+
     return { nodes, edges };
   }
 

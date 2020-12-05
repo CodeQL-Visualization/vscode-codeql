@@ -573,28 +573,57 @@ export async function compileAndRunQueryAgainstDatabase(
   }
 }
 
+function searchForFunction(
+  queryFile: string,
+  functionName: string
+) {
+  const begin = queryFile.indexOf(functionName);
+  if (begin == -1) { return [-1, -1]; }
+  let last = queryFile.indexOf('{', begin) + 1;
+  let count = 1;
+  while (count != 0) {
+    const open = queryFile.indexOf('{', last);
+    const close = queryFile.indexOf('}', last);
+    const next = Math.min(open == -1 ? Infinity : open, close == -1 ? Infinity : close);
+    count += queryFile.charAt(next) == '{' ? 1 : -1;
+    last = next + 1;
+  }
+  return [begin, last];
+}
+
 function modifyQuery(
   queryPath: string,
   removedFunction: string,
   newFunction: string
 ): string {
   const queryFile = readFileSync(queryPath, 'utf-8');
-  const begin = queryFile.indexOf(removedFunction);
-  if (begin == -1) { return 'none'; }
-  let start = queryFile.indexOf('{', begin) + 1;
-  let count = 1;
-  while (count != 0) {
-    const open = queryFile.indexOf('{', start);
-    const close = queryFile.indexOf('}', start);
-    const next = Math.min(open == -1 ? Infinity : open, close == -1 ? Infinity : close);
-    count += queryFile.charAt(next) == '{' ? 1 : -1;
-    start = next + 1;
-  }
+  const [begin, last] = searchForFunction(queryFile, removedFunction);
+  if (begin == -1) return 'none';
   const newQueryPath = (
     queryPath.substr(0, queryPath.lastIndexOf('/')) + '/.' +
     String(crypto.createHash('sha256').update(queryPath + removedFunction + newFunction).digest('hex')) + '.ql'
   ); // TODO do temporary files properly (cleanup)
-  const newQueryFile = queryFile.substr(0, begin) + newFunction + queryFile.substr(start);
+  const newQueryFile = queryFile.substr(0, begin) + newFunction + queryFile.substr(last);
+  writeFileSync(newQueryPath, newQueryFile);
+  return newQueryPath;
+}
+
+function replaceSink(
+  queryPath: string,
+): string {
+  const queryFile = readFileSync(queryPath, 'utf-8');
+  const begin = searchForFunction(queryFile, 'override predicate isSanitizer(')[0];
+  if (begin == -1) return 'none';
+  const tempQueryFile = queryFile.substr(0, begin) + ' predicate ' + queryFile.substr(begin + 25);
+
+  const [start, end] = searchForFunction(tempQueryFile, 'override predicate isSink(');
+  if (start == -1) return 'none';
+  const newQueryPath = (
+    queryPath.substr(0, queryPath.lastIndexOf('/')) + '/.' +
+    String(crypto.createHash('sha256').update(queryPath).digest('hex')) + '.ql'
+  ); // TODO do temporary files properly (cleanup)
+  const newQueryFile = tempQueryFile.substr(0, start) + 'override predicate isSink(DataFlow::Node sink) {tizer (sink)}' + tempQueryFile.substr(end);
+
   writeFileSync(newQueryPath, newQueryFile);
   return newQueryPath;
 }
@@ -621,12 +650,14 @@ export async function compileAndRunVisQueryAgainstDatabase(
   // Get additional queries if needed
   const queryPaths = [['original', queryPath]];
   const saniQueryPath = modifyQuery(queryPath, 'override predicate isSanitizer(', '');
-  if (saniQueryPath != 'none') { queryPaths.push(['sani', saniQueryPath]); }
-  if (fullPathVis) {
-    const sinkQueryPath = modifyQuery(queryPath, 'override predicate isSink(',
-      'override predicate isSink(DataFlow::Node sink) {not isSource(sink)}');
-    if (sinkQueryPath != 'none') { queryPaths.push(['sink', sinkQueryPath]); }
+  if (saniQueryPath != 'none') {
+    queryPaths.push(['sani', saniQueryPath]);
+    if (fullPathVis) {
+      const sinkQueryPath = replaceSink(queryPath);
+      if (sinkQueryPath != 'none') { queryPaths.push(['sink', sinkQueryPath]); }
+    }
   }
+
   // Run each query
   for (const queryInfo of queryPaths) {
     const [name, queryPath] = queryInfo;
