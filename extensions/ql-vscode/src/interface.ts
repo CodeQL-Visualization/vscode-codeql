@@ -508,7 +508,7 @@ export class InterfaceManager extends DisposableObject {
       edges.add({
         from: from,
         to: to,
-        label: 'taint'
+        label: 'tainted'
       });
       nodes.add({
         id: from,
@@ -579,7 +579,7 @@ export class InterfaceManager extends DisposableObject {
       edges.add({
         from: from,
         to: to,
-        label: 'taint'
+        label: 'tainted'
       });
       nodes.add({
         id: from,
