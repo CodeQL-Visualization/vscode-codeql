@@ -25,6 +25,13 @@ We have included some sample files in the repository to run as examples. These f
 1. Hover over "DATABASES" in the resulting window, and select the option that looks like a box, "Choose Database from Archive"
 1. Import both "mockSQL.zip" and "esbena_bootstrap-pre-27047_javascript.zip"
 
+### Additional Notes
+* If, at any point during the following instructions you are prompted to upgrade the database, select "Yes".
+* When the visualization window is rendering a graph, there are three things you can interact with:
+   * Click on the background and drag your mouse to move the viewport.
+   * Click and drag any of the nodes to reposition them if they are packed too tightly together, or you just want to see the graph jiggle.
+   * Scroll in and out to control the level of zoom.
+
 ### Java Demo (Based on First Assignment)
 If at any point during the following instructions you are prompted to upgrae the database, select "Yes".
 1. Set mockSQL as the current database
