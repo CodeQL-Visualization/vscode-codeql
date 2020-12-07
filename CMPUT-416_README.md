@@ -2,7 +2,7 @@
 
 ## Installation Instructions
 1. Follow the instructions [here](https://github.com/CodeQL-Visualization/vscode-debug-visualizer) to locate and install the companion extension that handles visualization.
-1. Download this extension's VSIX file [here](https://drive.google.com/file/d/1OtPz9uDCle7Qfm_N-hQRFZmhWkW09-L-/view?usp=sharing).
+1. Download this extension's VSIX file [here](https://github.com/CodeQL-Visualization/vscode-debug-visualizer/blob/master/CMPUT-416_README.md).
 1. Open [Visual Studio Code](https://code.visualstudio.com/download).
 1. Navigate to the Extensions menu (it looks like 4 blocks, one of which has yet to be put in place).
 1. Make sure you don't have an extension called "CodeQL".
