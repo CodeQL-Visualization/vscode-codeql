@@ -33,7 +33,6 @@ We have included some sample files in the repository to run as examples. These f
    * Scroll in and out to control the level of zoom.
 
 ### Java Demo (Based on First Assignment)
-If at any point during the following instructions you are prompted to upgrae the database, select "Yes".
 1. Set mockSQL as the current database
 1. Using the Explorer menu, navigate to codeql-custom-queries-java/example.ql
 1. Right click anywhere within the example.ql window and select "CodeQL: Run Query"
@@ -44,7 +43,6 @@ If at any point during the following instructions you are prompted to upgrae the
    * Notice that the visualization has been updated with more information about the data-flow
    
 ### JavaScript Demo (Much Larger Result Set)
-If at any point during the following instructions you are prompted to upgrae the database, select "Yes".
 1. Set esbena_bootstrap-pre-27047_204f9cf as the current database
 1. Using the Explorer menu, navigate to codeql-custom-queries-javascript/example.ql
 1. Right click anywhere within the example.ql window and select "CodeQL: Run Query"
