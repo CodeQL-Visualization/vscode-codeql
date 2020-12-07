@@ -599,8 +599,9 @@ function modifyQuery(
   const queryFile = readFileSync(queryPath, 'utf-8');
   const [begin, last] = searchForFunction(queryFile, removedFunction);
   if (begin == -1) return 'none';
+  const slash = queryPath.indexOf('/') != -1 ? '/' : '\\';
   const newQueryPath = (
-    queryPath.substr(0, queryPath.lastIndexOf('/')) + '/.' +
+    queryPath.substr(0, queryPath.lastIndexOf(slash)) + slash + '.' +
     String(crypto.createHash('sha256').update(queryPath + removedFunction + newFunction).digest('hex')) + '.ql'
   ); // TODO do temporary files properly (cleanup)
   const newQueryFile = queryFile.substr(0, begin) + newFunction + queryFile.substr(last);
@@ -618,8 +619,9 @@ function replaceSink(
 
   const [start, end] = searchForFunction(tempQueryFile, 'override predicate isSink(');
   if (start == -1) return 'none';
+  const slash = queryPath.indexOf('/') != -1 ? '/' : '\\';
   const newQueryPath = (
-    queryPath.substr(0, queryPath.lastIndexOf('/')) + '/.' +
+    queryPath.substr(0, queryPath.lastIndexOf(slash)) + slash + '.' +
     String(crypto.createHash('sha256').update(queryPath).digest('hex')) + '.ql'
   ); // TODO do temporary files properly (cleanup)
   const newQueryFile = tempQueryFile.substr(0, start) + 'override predicate isSink(DataFlow::Node sink) {tizer (sink)}' + tempQueryFile.substr(end);
