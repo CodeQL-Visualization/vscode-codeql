@@ -8,6 +8,7 @@ server/
 node_modules/
 gen/
 artifacts/
+*.vsix
 
 # Integration test artifacts
 **/.vscode-test/**
@@ -19,3 +20,6 @@ artifacts/
 /common/temp/**
 package-deps.json
 **/.rush/temp
+
+# Cache Files
+.cache/
