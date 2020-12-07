@@ -699,7 +699,7 @@ export class InterfaceManager extends DisposableObject {
     }
 
     //write data to file 
-    fs.writeFile(__dirname + '/../../../codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
+    fs.writeFile(__dirname + '/codeqlVisData.json', JSON.stringify(graph), 'utf8', function writeFileCallback(err: any) {
       if (err) {
         console.log(err);
       }

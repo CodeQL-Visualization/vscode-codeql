@@ -475,16 +475,9 @@ async function activateWithInstalledDistribution(
         for (const item of items) {
           await qhm.updateTreeItemContextValue(item[1]);
         }
-        // start the visualizer manually......
-        //exec('code --extensionDevelopmentPath=' + __dirname + '/../../../vscode-debug-visualizer/extension', (err: any, stdout: any, stderr: any) => {
-        //console.log(stdout);
 
-        //if (err) {
-        //console.log(err);
-        //console.log(stderr);
-        //}
-        //});
-        commands.executeCommand('vscode-debug-visualizer.codeql-visualizer', __dirname + '/../../../codeqlVisData.json');
+        // start the visualizer extension
+        commands.executeCommand('vscode-debug-visualizer.codeql-visualizer', __dirname + '/codeqlVisData.json');
       }
     }
   }
