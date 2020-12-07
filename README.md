@@ -1,5 +1,8 @@
 # CodeQL for Visual Studio Code
 
+### For CMPUT 416
+See [CMPUT-416_README.md](CMPUT-416_README.md) for installation and demo instructions.
+
 This project is an extension for Visual Studio Code that adds rich language support for CodeQL. It's used to find problems in code bases using CodeQL. It's written primarily in TypeScript.
 
 The extension is released. You can download it from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=github.vscode-codeql).
